@@ -1,5 +1,7 @@
 # Database
 mysql-connector-python==8.2.0
+sqlalchemy==2.0.25
+pymysql==1.1.0
 python-dotenv==1.0.0
 
 # Data Processing
@@ -8,4 +10,7 @@ numpy==1.26.2
 
 # Visualization
 matplotlib==3.8.2
-seaborn==0.13.0
+seaborn==0.13.0s
+
+# Development Tools
+ruff==0.1.13

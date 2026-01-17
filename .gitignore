@@ -27,7 +27,8 @@ wheels/
 .env
 
 # IDE
-.vscode/
+.ruff_cache/
+.venv/
 .idea/
 *.swp
 *.swo
