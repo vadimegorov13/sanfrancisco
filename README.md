@@ -43,10 +43,20 @@ cp .env.example .env
 # Edit .env with MySQL variables
 ```
 
-3. **Run:**
+3. **Inject datasets into local MySQL database:**
+
+Load 311 cases dataset
 
 ```bash
-python main.py
+python main.py load --dataset vw6y-z8j6 --table sf_311_cases --sample 1
+```
+
+wait for it to complete since theres 83k rows in vw6y-z8j6
+
+4. **Run the avaluation of the data**
+
+```bash
+python main.py analyze
 ```
 
 ## Implementation

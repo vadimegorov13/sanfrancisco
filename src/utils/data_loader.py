@@ -10,16 +10,16 @@ import requests
 
 from src.database.db_connector import DatabaseConnector
 
+MAX_SF_API_PAGE_SIZE = 1000
 
-def download_sf_dataset_to_mysql(
-    dataset_id: str,
-    table_name: str,
-    select_columns: str = '*',
-    where_clause: Optional[str] = None,
-    if_exists: Literal['fail', 'replace', 'append'] = 'fail',
-    page_size: int = 1000,
-    max_rows: Optional[int] = None,
-    show_sample: bool = False,
+def inject_sf_dataset_to_mysql_db(
+  dataset_id: str,
+  table_name: str,
+  select_columns: str = '*',
+  where_clause: Optional[str] = None,
+  if_exists: Literal['fail', 'replace', 'append'] = 'fail',
+  max_rows: Optional[int] = None,
+  show_sample: bool = False,
 ):
   """
   Download complete dataset from San Francisco Open Data API and load into MySQL.
@@ -31,7 +31,6 @@ def download_sf_dataset_to_mysql(
     select_columns: Comma-separated column names or '*' for all
     where_clause: Optional WHERE clause for filtering (SoQL format)
     if_exists: What to do if table exists ('fail', 'replace', 'append')
-    page_size: Rows per page (max 1000 for SF API)
     max_rows: Limit on total rows to download
     show_sample: If True, print sample of downloaded data
 
@@ -47,10 +46,10 @@ def download_sf_dataset_to_mysql(
   while True:
     # Build request parameters using SoQL query parameters
     params = {
-        '$limit': page_size,
-        '$offset': offset,
-        '$select': select_columns,
-        '$where': where_clause,
+      '$limit': MAX_SF_API_PAGE_SIZE,
+      '$offset': offset,
+      '$select': select_columns,
+      '$where': where_clause,
     }
 
     # Make request
@@ -79,11 +78,11 @@ def download_sf_dataset_to_mysql(
       break
 
     # Check if on the last page
-    if len(records) < page_size:
+    if len(records) < MAX_SF_API_PAGE_SIZE:
       print('Last page reached')
       break
 
-    offset += page_size
+    offset += MAX_SF_API_PAGE_SIZE
     time.sleep(0.5)  # Small delay to not get rate-limited
 
   if all_records == []:
@@ -107,12 +106,12 @@ def download_sf_dataset_to_mysql(
 
     # Load data to MySQL in chunks
     df.to_sql(
-        name=table_name,
-        con=db.engine,
-        if_exists=if_exists,
-        index=False,
-        chunksize=5000,
-        method='multi',
+      name=table_name,
+      con=db.engine,
+      if_exists=if_exists,
+      index=False,
+      chunksize=5000,
+      method='multi',
     )
 
     # Get row count from database
@@ -131,3 +130,11 @@ def download_sf_dataset_to_mysql(
     print(df.head())
 
   return
+
+def inject_311_cases():
+  inject_sf_dataset_to_mysql_db(
+    dataset_id='vw6y-z8j6',
+    table_name='sf_311_cases',
+    if_exists='replace',
+    show_sample=True,
+  )
