@@ -8,30 +8,30 @@ import pandas as pd
 
 
 def handle_missing_values(df: pd.DataFrame) -> pd.DataFrame:
-	"""
-	Handle missing values.
+  """
+  Handle missing values.
 
-	TODO
-	"""
+  TODO
+  """
 
-	return df
+  return df
 
 
 def remove_duplicates(df: pd.DataFrame) -> pd.DataFrame:
-	"""
-	Remove duplicate rows.
+  """
+  Remove duplicate rows.
 
-	TODO
-	"""
+  TODO
+  """
 
-	return df.drop_duplicates()
+  return df.drop_duplicates()
 
 
 def detect_outliers_iqr(df: pd.DataFrame) -> pd.Series:
-	"""
-	Detect outliers.
+  """
+  Detect outliers.
 
-	TODO
-	"""
+  TODO
+  """
 
-	return pd.Series([False] * len(df))
+  return pd.Series([False] * len(df))

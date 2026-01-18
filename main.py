@@ -1,25 +1,16 @@
-from src.database.db_connector import DatabaseConnector
+from src.utils.data_loader import download_sf_dataset_to_mysql
 
 
 def main():
-	with DatabaseConnector() as db:
-		query = 'SELECT 1'
-		df = db.query(query)
-
-		print(f'Fetched {len(df)} rows')
-		print(f'Columns: {df.columns.tolist()}')
-
-		# Clean data
-		# df = remove_duplicates(df)
-		# df = handle_missing_values(df)
-
-		print(f'After cleaning: {len(df)} rows')
-
-		# TODO
-		# - Clustering
-		# - Association rules
-		# - Anomaly detection
-
+  download_sf_dataset_to_mysql(
+    dataset_id='vw6y-z8j6',
+    table_name='sf_311_filtered',
+    select_columns='service_request_id, requested_datetime, service_name, status_description',
+    where_clause="status_description = 'Closed'",
+    max_rows=1000,
+    if_exists='replace',
+    show_sample=True,
+  )
 
 if __name__ == '__main__':
-	main()
+  main()
