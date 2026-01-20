@@ -109,7 +109,7 @@ def inject_sf_dataset_to_mysql_db(
       name=table_name,
       con=db.engine,
       if_exists=if_exists,
-      index=False,
+      index=True,
       chunksize=5000,
       method='multi',
     )
