@@ -49,7 +49,12 @@ Load datasets from the SF Database
 
 ```bash
 # 311 cases
-python main.py load --dataset vw6y-z8j6 --table sf_311_cases --sample 1
+python main.py load --dataset vw6y-z8j6 --table sf_311_cases --columns "service_request_id, requested_datetime, closed_date, agency_responsible, service_name, service_subtype, service_details, address, street, neighborhoods_sffind_boundaries, analysis_neighborhood, lat, long, source" --where "status_description='Closed'" --sample 1 --limit 80000
+
+python main.py load --dataset smdf-6c45 --table sf_utility_excavation_permits --columns "permit_number, streetname, cross_street_1, cross_street_2, utility_contractor, permit_reason, utility_type, effective_date, expiration_date, status" --sample 1
+
+python main.py load --dataset gfpk-269f --table sf_find_neighborhoods --columns "the_geom, name" --sample 1
+
 ```
 
 4. **Run the avaluation of the data**

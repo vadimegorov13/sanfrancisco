@@ -11,7 +11,7 @@ requests==2.31.0
 
 # Visualization
 matplotlib==3.8.2
-seaborn==0.13.0s
+seaborn==0.13.0
 
 # Development Tools
 ruff==0.1.13
