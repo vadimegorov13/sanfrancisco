@@ -48,12 +48,18 @@ cp .env.example .env
 Load datasets from the SF Database
 
 ```bash
-# 311 cases
-python main.py load --dataset vw6y-z8j6 --table sf_311_cases --columns "service_request_id, requested_datetime, closed_date, agency_responsible, service_name, service_subtype, service_details, address, street, neighborhoods_sffind_boundaries, analysis_neighborhood, lat, long, source" --where "status_description='Closed'" --sample 1 --limit 80000
+# 1) 311 Cases (vw6y-z8j6) -> sf_311_cases
+python main.py load --dataset vw6y-z8j6 --table sf_311_cases --limit 1000 --exists replace --sample 1
 
-python main.py load --dataset smdf-6c45 --table sf_utility_excavation_permits --columns "permit_number, streetname, cross_street_1, cross_street_2, utility_contractor, permit_reason, utility_type, effective_date, expiration_date, status" --sample 1
+# 2) Utility Excavation Permits (smdf-6c45) -> sf_utility_excavation_permits
+python main.py load --dataset smdf-6c45 --table sf_utility_excavation_permits --limit 1000 --exists replace --sample 1
 
-python main.py load --dataset gfpk-269f --table sf_find_neighborhoods --columns "the_geom, name" --sample 1
+# 3) Street & Sidewalk Maintenance Standards Results (qya8-uhsz) -> sf_street_sidewalk_maintenance_standards
+python main.py load --dataset qya8-uhsz --table sf_street_sidewalk_maintenance_standards --limit 1000 --exists replace --sample 1
+
+# 4) Fire Incidents (wr8u-xric) -> sf_fire_incidents   (optional)
+python main.py load --dataset wr8u-xric --table sf_fire_incidents --limit 1000 --exists replace --sample 1
+
 
 ```
 
