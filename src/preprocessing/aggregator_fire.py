@@ -2,8 +2,8 @@
 Fire incident neighborhood-month aggregation
 
 Takes a filtered sf_fire_incidents DataFrame (output of filter_fire_v1) and
-produces one row per (neighborhood, year_month) with the 7 v1 fire feature
-columns defined in Story 3.
+produces one row per (neighborhood, year_month) with the 7 fire feature
+columns
 
 Feature columns produced:
   total_fire_count      — count of all filtered records
