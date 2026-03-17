@@ -23,6 +23,7 @@ wheels/
 .installed.cfg
 *.egg
 .instructions
+outputs/
 
 # Environment variables
 .env
