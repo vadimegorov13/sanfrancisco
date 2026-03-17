@@ -22,13 +22,13 @@ def load_data(args):
 
 def analyze_data(args):
   """
-  Run the full v1 analysis pipeline
+  Run the full analysis pipeline
 
-  Orchestrates Stories 4-10 in order:
+  Orchestrates:
     load → filter → normalize → feature-build → merge →
     score → cluster → anomaly-detect → figures → summary
 
-  All outputs are saved under outputs/ (or the directory given by --output-dir).
+  All outputs are saved under the directory given by --output-dir (default: outputs).
   """
   from src.analysis.pipeline import run_v1_pipeline
   run_v1_pipeline(output_dir=getattr(args, "output_dir", "outputs"))
@@ -54,7 +54,7 @@ def main():
   load_parser.set_defaults(func=load_data)
   
   # Analyze command
-  analyze_parser = subparsers.add_parser('analyze', help='Run v1 analysis pipeline')
+  analyze_parser = subparsers.add_parser('analyze', help='Run analysis pipeline')
   analyze_parser.add_argument(
     '--output-dir',
     type=str,

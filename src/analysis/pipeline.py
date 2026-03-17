@@ -188,7 +188,7 @@ def run_v1_pipeline(output_dir: str = "outputs") -> None:
     log.info("[9/9] Running downstream analysis steps")
     _run_scorer(v1, tables_dir, figures_dir, log)
     _run_clusterer(v1, tables_dir, figures_dir, log)
-    _run_anomaly(v1, tables_dir, log)
+    _run_anomaly(v1, tables_dir, figures_dir, log)
 
     # ------------------------------------------------------------------
     # Summary
@@ -266,15 +266,36 @@ def _run_clusterer(
         log.info("      [9] Clusterer not yet implemented — skipping")
 
 
-def _run_anomaly(v1: pd.DataFrame, tables_dir: Path, log: logging.Logger) -> None:
+def _run_anomaly(
+    v1: pd.DataFrame,
+    tables_dir: Path,
+    figures_dir: Path,
+    log: logging.Logger,
+) -> None:
     try:
-        from .anomaly import run_anomaly_detection
+        from .anomaly import FLAG_MIN_FEATURES, run_anomaly_detection
         log.info("      [10] Running anomaly detection")
         anomalies = run_anomaly_detection(v1)
         anomalies.to_csv(tables_dir / "anomaly_scores.csv", index=False)
         log.info(f"            saved anomaly_scores.csv — {len(anomalies):,} rows")
+
+        flagged = anomalies[anomalies["anomaly_score"] >= FLAG_MIN_FEATURES]
+        log.info(f"            flagged rows (≥{FLAG_MIN_FEATURES} features spiked): {len(flagged):,}")
+        if len(flagged):
+            top5 = flagged.head(5)[["neighborhood", "year_month", "anomaly_score", "top_feature", "top_z"]]
+            for _, r in top5.iterrows():
+                log.info(
+                    f"            #{int(r['anomaly_score'])} spikes — "
+                    f"{r['neighborhood']} {r['year_month']} "
+                    f"(top: {r['top_feature']} z={r['top_z']})"
+                )
+
+        from .plotter import save_anomaly_figure
+        save_anomaly_figure(anomalies, figures_dir)
+        log.info("            saved anomaly_scatter.png")
+
     except NotImplementedError:
-        log.info("      [10] Anomaly detection not yet implemented")
+        log.info("      [10] Anomaly detection not yet implemented — skipping")
 
 
 # ---------------------------------------------------------------------------

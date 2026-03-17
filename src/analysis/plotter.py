@@ -359,3 +359,80 @@ def _cluster_heatmap_figure(profiles: pd.DataFrame, out: Path) -> int:
     plt.xticks(rotation=40, ha="right", fontsize=8)
     fig.tight_layout()
     return _save(fig, out / "cluster_profile_heatmap.png")
+
+
+# ---------------------------------------------------------------------------
+# Story 10 — anomaly figure
+# ---------------------------------------------------------------------------
+
+def save_anomaly_figure(anomalies: pd.DataFrame, figures_dir: Path) -> int:
+    """
+    Scatter plot: anomaly score vs. total_311_count for all neighborhood-months.
+
+    Each dot is one neighborhood-month. The x-axis shows its 311 volume
+    (a proxy for general activity level) and the y-axis shows how many
+    features spiked above 2σ. Flagged rows (anomaly_score >= 2) are coloured
+    and labelled with their neighborhood + month so the reader can identify
+    standout cases immediately.
+
+    Args:
+        anomalies:   Output of run_anomaly_detection() — all 984 rows,
+                     sorted descending by anomaly_score.
+        figures_dir: Directory to write anomaly_scatter.png.
+
+    Returns:
+        1 (number of figures saved).
+    """
+    from src.analysis.anomaly import FLAG_MIN_FEATURES
+
+    flagged = anomalies[anomalies["anomaly_score"] >= FLAG_MIN_FEATURES]
+    normal  = anomalies[anomalies["anomaly_score"] <  FLAG_MIN_FEATURES]
+
+    # 311 count column is available in anomalies if the caller passes all rows;
+    # fall back gracefully if it was dropped.
+    x_col = "total_311_count_z" if "total_311_count_z" in anomalies.columns else None
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    if x_col:
+        ax.scatter(
+            normal[x_col], normal["anomaly_score"],
+            alpha=0.25, s=18, color="steelblue", label="normal",
+        )
+        ax.scatter(
+            flagged[x_col], flagged["anomaly_score"],
+            alpha=0.8, s=40, color="tomato", zorder=5, label=f"anomalous (≥{FLAG_MIN_FEATURES} features spiked)",
+        )
+        ax.set_xlabel("Total 311 count (z-score)", fontsize=10)
+    else:
+        ax.scatter(
+            range(len(normal)), normal["anomaly_score"],
+            alpha=0.25, s=18, color="steelblue", label="normal",
+        )
+        ax.scatter(
+            range(len(flagged)), flagged["anomaly_score"],
+            alpha=0.8, s=40, color="tomato", zorder=5, label=f"anomalous (≥{FLAG_MIN_FEATURES} features spiked)",
+        )
+        ax.set_xlabel("Row index", fontsize=10)
+
+    # Label the top 10 most anomalous rows
+    top10 = flagged.head(10)
+    if x_col:
+        for _, row in top10.iterrows():
+            ax.annotate(
+                f"{row['neighborhood']}\n{row['year_month']}",
+                xy=(row[x_col], row["anomaly_score"]),
+                xytext=(4, 2), textcoords="offset points",
+                fontsize=6, color="darkred",
+            )
+
+    ax.set_ylabel("Anomaly score (# features > 2σ)", fontsize=10)
+    ax.set_title(
+        "Neighborhood-Month Anomaly Detection\n"
+        "(z-score method, 2024–2025; red = ≥2 features above 2σ)",
+        fontsize=11,
+    )
+    ax.legend(fontsize=9)
+    ax.yaxis.set_major_locator(mticker.MaxNLocator(integer=True))
+    fig.tight_layout()
+    return _save(fig, figures_dir / "anomaly_scatter.png")
