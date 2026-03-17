@@ -1,24 +1,19 @@
-# San Francisco Data Mining Project
+# San Francisco Neighborhood Issue Pressure
 
 Data Mining course project based on the data sets from https://data.sfgov.org/
 
 ## Project Structure
 
-```
+```text
 sanfrancisco/
-├── data/
-│   ├── raw/          # Downloaded SF datasets
-│   ├── processed/    # Cleaned data
-│   └── cache/        # Temp files
-├── notebooks/
-│   └── exploratory_analysis.py
 ├── src/
 │   ├── database/
-│   │   └── db_connector.py      # MySQL connector
+│   │   └── db_connector.py
 │   ├── preprocessing/
-│   │   └── data_cleaner.py      # Basic cleaning functions
+│   │   └── data_cleaner.py
 │   └── utils/
-│       └── data_loader.py       # Data loader for SF datasets
+│       ├── data_loader.py
+│       └── logger.py
 ├── main.py
 ├── requirements.txt
 └── .env.example
@@ -26,95 +21,109 @@ sanfrancisco/
 
 ## Setup
 
-1. **Create virtual environment:**
+### 1. Create a virtual environment
 
 ```bash
 python -m venv venv
-
 source venv/bin/activate
-
 pip install -r requirements.txt
 ```
 
-2. **Configure database:**
+### 2. Configure database access
 
 ```bash
 cp .env.example .env
-# Edit .env with MySQL variables
 ```
 
-3. **Inject datasets into local MySQL database:**
+Then edit `.env` with your local MySQL credentials.
 
-Load datasets from the SF Database
+## Load the datasets into MySQL
+
+The loader supports:
+
+- dataset ID
+- target table name
+- selected columns
+- a WHERE clause
+- replace/append/fail behavior
+- optional sample preview
+
+### 311 Cases
 
 ```bash
-# 1) 311 Cases (vw6y-z8j6) -> sf_311_cases
-python main.py load --dataset vw6y-z8j6 --table sf_311_cases --limit 1000 --exists replace --sample 1
-
-# 2) Utility Excavation Permits (smdf-6c45) -> sf_utility_excavation_permits
-python main.py load --dataset smdf-6c45 --table sf_utility_excavation_permits --limit 1000 --exists replace --sample 1
-
-# 3) Street & Sidewalk Maintenance Standards Results (qya8-uhsz) -> sf_street_sidewalk_maintenance_standards
-python main.py load --dataset qya8-uhsz --table sf_street_sidewalk_maintenance_standards --limit 1000 --exists replace --sample 1
-
-# 4) Fire Incidents (wr8u-xric) -> sf_fire_incidents   (optional)
-python main.py load --dataset wr8u-xric --table sf_fire_incidents --limit 1000 --exists replace --sample 1
-
-
+python main.py load \
+  --dataset vw6y-z8j6 \
+  --table sf_311_cases \
+  --columns "service_request_id,requested_datetime,closed_date,updated_datetime,status_description,agency_responsible,service_name,service_subtype,service_details,address,street,supervisor_district,neighborhoods_sffind_boundaries,analysis_neighborhood,police_district,lat,long,source,data_as_of,data_loaded_at" \
+  --where "requested_datetime >= '2024-01-01T00:00:00' AND requested_datetime < '2026-04-01T00:00:00' AND analysis_neighborhood IS NOT NULL AND neighborhoods_sffind_boundaries IS NOT NULL AND source = 'Mobile/Open311' AND status_description = 'Closed'" \
+  --exists replace \
+  --sample 1
 ```
 
-4. **Run the avaluation of the data**
+### Utility Excavation Permits
 
 ```bash
-python main.py analyze
+python main.py load \
+  --dataset smdf-6c45 \
+  --table sf_utility_excavation_permits \
+  --columns "permit_number,streetname,cross_street_1,cross_street_2,utility_contractor,permit_reason,utility_type,effective_date,expiration_date,status,cnn" \
+  --where "effective_date >= '2024-01-01T00:00:00' AND effective_date < '2026-04-01T00:00:00'" \
+  --exists replace \
+  --sample 1
+```
+
+### Fire Incidents
+
+```bash
+python main.py load \
+  --dataset wr8u-xric \
+  --table sf_fire_incidents \
+  --columns "incident_number,id,address,incident_date,alarm_dttm,arrival_dttm,close_dttm,city,zipcode,battalion,station_area,suppression_units,suppression_personnel,ems_units,ems_personnel,estimated_property_loss,estimated_contents_loss,fire_fatalities,fire_injuries,civilian_fatalities,civilian_injuries,number_of_alarms,primary_situation,action_taken_primary,action_taken_secondary,action_taken_other,property_use,ignition_cause,heat_source,supervisor_district,neighborhood_district,data_as_of,data_loaded_at" \
+  --where "incident_date >= '2024-01-01T00:00:00' AND incident_date < '2026-04-01T00:00:00'" \
+  --exists replace \
+  --sample 1
 ```
 
 ## Implementation
 
 ### Initial work
 
-I've started from the set up of the python environment and architecture of the project for the easy of continuous work. One of the steps involved the implemention of the database connector to establish the connection between this project and my MySQL database. Also, an important step was intitiation of the formatter into the project for good redibility and consistency in code style.
+I started this project by setting up the Python environment and organizing the repository structure so the work can continue cleanly as the project grows. Since the assignment requires reproducible code and a clear implementation process, I also set up the project to work with a local MySQL database where the San Francisco Open Data datasets can be stored and queried.
+
+An important part of the initial setup was making sure the project can reliably download datasets from the San Francisco Open Data API and load them into local tables. This makes it easier to explore the data, filter it to a specific time window, and later build the analysis in a way that can be repeated without manually redoing the data collection process.
+
+Another goal from the start was to keep the project flexible. I do not want the implementation to depend too heavily on one specific dataset combination. Instead, I want the structure of the project to make it easy to plug in another relevant dataset later and test whether it improves the analysis or reveals a new pattern.
 
 ### Working with data
 
-Working with the SF data API, knowing that my project will evolve into using myltiple dataset to find correlation I've implemnted a simple yet robust function for collecting the data using SF API. by providing some argument like API endpoint and table name it is enough to create a table in the local database and download data using SF databse API.
+For this project I decided to focus only on recent data instead of mixing older datasets with newer ones. At first I considered combining datasets that described long-term infrastructure condition, but many of them did not align well in time with the more current operational datasets. Because of that, I narrowed the scope to datasets that have useful updates through 2024, 2025, and into 2026.
+
+This shift made the project much more coherent. Instead of trying to measure general long-term infrastructure condition, the analysis now focuses on identifying neighborhoods that are currently experiencing more pressure based on public issue reports, infrastructure work activity, and emergency incident signals.
+
+The current approach is to use the data in a way that supports neighborhood-level comparison. The idea is not to treat any single dataset as a direct measure of neighborhood quality, but instead to combine multiple public signals that may reflect where issues are happening more often, where disruption is more common, and where unusual activity may be concentrated.
 
 ### Problem Definition
 
-For this project I decided to pick the issue from my own experience dealing with unreliable internet connectivity during my gaming hours that roughly starts at 7pm until 2am. While living in Anchorage, Alaska, I use GCI as my internet provider (because this is the only option apparently) and often run into connection issues during online competitive gaming. And after months of back-and-forth discussion with GCI's support team the connectivity issue has not been resolved.
+For this project I decided to focus on a city operations and infrastructure question: **how can we identify which San Francisco neighborhoods appear to be experiencing more issues in recent years using only public city data?**
 
-That experience raised a practical question: if I ever want to move to San Francisco, how would I know which areas are more likely to have stable internet connectivity, especially in the evenings when my online activity is highest? After a quick research (I've googled "which area in SF has the best internet connectivity") I could not find a reliable source on identifiing the areas with the best internet quality. So I think answering this question requires looking at indirect signals using available San Fransico datasets, and that this problem is a perfect for this assignment.
+Unlike problems where there is a clear labeled target, this one is less direct. There is no public dataset that simply tells us which neighborhoods are under more infrastructure pressure.
 
-#### Problem Title
-
-**_Urban Infrastructure Reliability During Peak Online Activity Hours_**
+The goal is to discover patterns from recent San Francisco operational datasets and compare neighborhoods based on signals such as service requests, planned utility work, and selected emergency incidents.
 
 ### Reasoning Behind Data Selection
 
-Since there is no public dataset that directly shows internet quality or reliability by neighborhood, this project relies on indirect but realistic signals that can impact internet connectivity, especially during evening and nighttime hours.
+The datasets for this project were chosen based on two main requirements: they needed to be relevant to the problem, and they needed to have recent enough data to support a consistent analysis window.
 
-The **SF 311 Cases** dataset (vw6y-z8j6) is used in a heavily filtered form. Instead of downloading the entire dataset, only request types related to power outages, street light issues, and utility-related disruptions are included. These types of incidents are related to infrastructure failures that can affect home and neighborhood-level internet connectivity.
+The first dataset is SF 311 Cases (vw6y-z8j6). This is the main source of public issue and service request activity. It includes reports submitted by residents and can capture a wide variety of operational and infrastructure-related problems across the city. For this project, the dataset is useful because it provides a direct signal of where people are reporting issues. It also includes neighborhood and location-related fields that make neighborhood-level aggregation possible.
 
-**Dataset:** https://data.sfgov.org/City-Infrastructure/311-Cases/vw6y-z8j6
+The second dataset is Utility Excavation Permits (smdf-6c45). This dataset represents planned utility-related work and excavation activity. It does not measure neighborhood problems directly, but it provides an important complementary signal. Areas with repeated excavation or utility work may be experiencing more disruption, construction activity, or ongoing maintenance. This helps the project move beyond only resident complaints and include a second type of infrastructure-related pressure.
 
-**Streetlighta** dataset (6tt8-ugnj) is included as a proxy for local power stability. When streetlights are out, it often indicates broader issues in the area, which can also affect internet connectivity. This dataset is relatively small and include clear timestamps, making it possible to measure how frequently outages occur and how long they take to resolve.
+The third dataset is Fire Incidents (wr8u-xric). This dataset is broader than the other two, so it will likely need careful filtering during the analysis. Still, it is one of the few recent datasets that provides another operational view of activity across the city, and it includes a neighborhood field that is useful for aggregation. The goal is not to use every fire incident as an infrastructure signal, but rather to explore whether certain incident categories can serve as an additional neighborhood-level indicator of unusual pressure or disruption.
 
-**Dataset:** https://data.sfgov.org/City-Infrastructure/Streetlights/6tt8-ugnj
+Together, these three datasets provide a practical starting point for the assignment. They are recent, publicly available, and different enough from each other to support a multi-source analysis. At the same time, they are limited enough in number to keep the project manageable and reproducible.
 
-**Utility and excavation permit** datasets are used to capture planned construction activity. Utility digging and excavation work is a known cause of temporary service disruptions, including fiber cuts and localized outages. Including this data helps identify areas that may be at higher risk of connectivity issues due to ongoing or frequent infrastructure work.
+### Analysis Window
 
-**Datasets:**
+January 1, 2024 through March 31, 2026
 
-**Utility Excavation Permits (smdf-6c45):** https://data.sfgov.org/City-Infrastructure/Utility-Excavation-Permits/smdf-6c45
-
-**Large Utility Excavation Permits (i926-ujnc):** https://data.sfgov.org/City-Infrastructure/Large-Utility-Excavation-Permits/i926-ujnc
-
-**Neighborhood boundary** dataset (pty2-tcw4) is used as a spatial layer to group events and compare patterns across different areas of San Francisco. This allows the analysis to move from individual incidents to neighborhood-level reliability trends.
-
-**Dataset:** https://data.sfgov.org/Geographic-Locations-and-Boundaries/SF-Find-Neighborhoods/pty2-tcw4
-
-Finally, external broadband availability data from the FCC is used to understand which areas have more provider options or access to fiber.
-
-**Dataset:** https://www.fcc.gov/broadbanddata
-
-Together, these datasets provide a realistic and manageable way to study urban infrastructure reliability during peak online activity hours, using publicly available data.
+This window keeps the analysis focused on recent city activity and avoids combining much older records with current operational data.
