@@ -3,8 +3,9 @@ Data preprocessing utilities.
 """
 
 from .aggregator_311 import build_311_features
-from .data_cleaner import detect_outliers_iqr, handle_missing_values, remove_duplicates
+from .aggregator_fire import build_fire_features
 from .filters_311 import V1_ISSUE_GROUPS, filter_311_v1
+from .filters_fire import V1_INCIDENT_GROUPS, filter_fire_v1
 from .neighborhood_normalizer import (
     CANONICAL_NEIGHBORHOODS,
     apply_neighborhood_normalization,
@@ -12,10 +13,6 @@ from .neighborhood_normalizer import (
 )
 
 __all__ = [
-    # data_cleaner
-    "handle_missing_values",
-    "remove_duplicates",
-    "detect_outliers_iqr",
     # neighborhood_normalizer
     "CANONICAL_NEIGHBORHOODS",
     "apply_neighborhood_normalization",
@@ -25,4 +22,9 @@ __all__ = [
     "V1_ISSUE_GROUPS",
     # aggregator_311
     "build_311_features",
+    # filters_fire
+    "filter_fire_v1",
+    "V1_INCIDENT_GROUPS",
+    # aggregator_fire
+    "build_fire_features",
 ]
