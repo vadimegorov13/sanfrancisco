@@ -54,8 +54,8 @@ The loader supports:
 python main.py load \
   --dataset vw6y-z8j6 \
   --table sf_311_cases \
-  --columns "service_request_id,requested_datetime,closed_date,updated_datetime,status_description,agency_responsible,service_name,service_subtype,service_details,address,street,supervisor_district,neighborhoods_sffind_boundaries,analysis_neighborhood,police_district,lat,long,source,data_as_of,data_loaded_at" \
-  --where "requested_datetime >= '2024-01-01T00:00:00' AND requested_datetime < '2026-04-01T00:00:00' AND analysis_neighborhood IS NOT NULL AND neighborhoods_sffind_boundaries IS NOT NULL AND source = 'Mobile/Open311' AND status_description = 'Closed'" \
+  --columns "service_request_id,requested_datetime,closed_date,updated_datetime,status_description,status_notes,agency_responsible,service_name,service_subtype,service_details,address,street,supervisor_district,neighborhoods_sffind_boundaries,analysis_neighborhood,police_district,lat,long,source,data_as_of,data_loaded_at" \
+  --where "requested_datetime >= '2024-01-01T00:00:00' AND requested_datetime < '2026-04-01T00:00:00' AND analysis_neighborhood IS NOT NULL AND neighborhoods_sffind_boundaries IS NOT NULL AND status_description = 'Closed' AND status_notes LIKE 'Case Resolved%' AND source IN ('Phone','Mobile/Open311','Web','Mobile') AND service_name NOT IN ('Parking Enforcement','Graffiti Public','Graffiti','Street and Sidewalk Cleaning','Graffiti Private')" \
   --exists replace \
   --sample 1
 ```
