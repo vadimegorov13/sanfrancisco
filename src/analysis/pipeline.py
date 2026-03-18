@@ -162,6 +162,7 @@ def run_pipeline(output_dir: str = "outputs") -> None:
     _run_scorer(merged, tables_dir, figures_dir, log)
     _run_clusterer(merged, tables_dir, figures_dir, log)
     _run_anomaly(merged, tables_dir, figures_dir, log)
+    _run_robustness(merged, tables_dir, summaries_dir, log)
 
     _write_summary(merged, df_311, df_fire, summaries_dir, log)
 
@@ -257,6 +258,39 @@ def _run_anomaly(
 
     except NotImplementedError:
         log.info("      [10] Anomaly detection not yet implemented — skipping")
+
+
+def _run_robustness(
+    merged: pd.DataFrame,
+    tables_dir: Path,
+    summaries_dir: Path,
+    log: logging.Logger,
+) -> None:
+    try:
+        from .robustness import build_report, run_robustness
+        log.info("      [11] Running robustness checks")
+
+        results = run_robustness(merged)
+
+        # Save tabular results as CSV
+        sw: pd.DataFrame = results["score_weights"]   # type: ignore[assignment]
+        fd: pd.DataFrame = results["feature_drop"]    # type: ignore[assignment]
+        ck: pd.DataFrame = results["cluster_k"]       # type: ignore[assignment]
+        at: pd.DataFrame = results["anomaly_threshold"] # type: ignore[assignment]
+
+        sw.to_csv(tables_dir / "robustness_score_weights.csv",    index=False)
+        fd.to_csv(tables_dir / "robustness_feature_drop.csv",     index=False)
+        ck.to_csv(tables_dir / "robustness_cluster_k.csv",        index=False)
+        at.to_csv(tables_dir / "robustness_anomaly_threshold.csv", index=False)
+        log.info("           saved 4 robustness CSV(s) to tables/")
+
+        # Save markdown report
+        report = build_report(results)
+        (summaries_dir / "robustness_report.md").write_text(report, encoding="utf-8")
+        log.info("           saved robustness_report.md")
+
+    except NotImplementedError:
+        log.info("      [11] Robustness checks not yet implemented — skipping")
 
 
 # Summary markdown
