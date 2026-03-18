@@ -343,13 +343,6 @@ def _write_summary(
         "| ------------ | -------------------- |",
         *[f"| {nbhd} | {cnt:,} |" for nbhd, cnt in top5_fire.items()],
         "",
-        "## Downstream steps",
-        "",
-        "| Step | Status |",
-        "| ---- | ------ |",
-        "| Composite score | pending |",
-        "| Hierarchical clustering | pending |",
-        "| Anomaly detection | pending |",
     ]
 
     (summaries_dir / "analysis_summary.md").write_text(
