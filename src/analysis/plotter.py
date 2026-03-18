@@ -238,17 +238,16 @@ def _dendrogram_figure(
     Z, labels = _compute_linkage(merged)
 
     # Build a label → cluster map for leaf colouring
-    label_to_cluster = assignments.set_index("neighborhood")["cluster"].to_dict()
+    assignments.set_index("neighborhood")["cluster"].to_dict()
     n_clusters = N_CLUSTERS
-    _palette = plt.cm.get_cmap("tab10", n_clusters) # type: ignore
-    cluster_colors = {c: _palette(c - 1) for c in range(1, n_clusters + 1)}
+    plt.cm.get_cmap("tab10", n_clusters) # type: ignore
 
     # Determine color threshold so that exactly N_CLUSTERS branches are coloured
     # The threshold sits just below the (N_CLUSTERS-1)th merge from the top.
     color_threshold = float(Z[-(n_clusters - 1), 2]) * 0.999
 
     fig, ax = plt.subplots(figsize=(6, 10))
-    ddata = _scipy_dendrogram(
+    _scipy_dendrogram(
         Z,
         labels=labels,
         orientation="left",
