@@ -30,8 +30,8 @@ def analyze_data(args):
 
   All outputs are saved under the directory given by --output-dir (default: outputs).
   """
-  from src.analysis.pipeline import run_v1_pipeline
-  run_v1_pipeline(output_dir=getattr(args, "output_dir", "outputs"))
+  from src.analysis.pipeline import run_pipeline
+  run_pipeline(output_dir=getattr(args, "output_dir", "outputs"))
 
 
 def main():

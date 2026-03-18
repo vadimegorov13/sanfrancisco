@@ -3,21 +3,18 @@ Hierarchical clustering of neighborhoods.
 
 Method
 ------
-* Unit       : neighborhood  (41 rows — mean of each month's observations)
-* Features   : all numeric features, standardized with StandardScaler
-* Distance   : Euclidean  (natural choice for Ward linkage)
-* Linkage    : Ward        (minimises within-cluster variance; produces compact,
-                           geometrically meaningful clusters)
-* k          : 4 clusters  (selected after inspecting the dendrogram —
-                           k=3 merges two visibly-distinct groups,
-                           k=5 over-splits the low-volume tail,
-                           k=4 gives four human-labellable groups)
-* NaN fill   : avg_closure_days → 0.0, avg_suppression_units → 0.0
-               (no activity in a month = no delay / no mobilisation)
+* Unit     : neighborhood (41 rows — mean of each month's observations)
+* Features : all 16 numeric features, standardized with StandardScaler
+* Distance : Euclidean (natural for Ward linkage)
+* Linkage  : Ward (minimises within-cluster variance; compact, interpretable clusters)
+* k        : 4 clusters (k=3 merges two distinct groups; k=5 over-splits the
+             low-volume tail; k=4 gives four human-labellable groups)
+* NaN fill : avg_closure_days → 0.0, avg_suppression_units → 0.0
+             (no activity in a month = no delay / no mobilisation)
 
 Public API
 ----------
-run_clustering(v1) → (assignments, profiles)
+run_clustering(features) → (assignments, profiles)
   assignments : 41 rows — neighborhood, cluster (1-indexed int)
   profiles    : k rows  — cluster, n_neighborhoods, mean of each feature
                           (un-standardised values for interpretability)
@@ -30,11 +27,8 @@ import pandas as pd
 from scipy.cluster.hierarchy import fcluster, linkage
 from sklearn.preprocessing import StandardScaler
 
-# ---------------------------------------------------------------------------
 # Configuration
-# ---------------------------------------------------------------------------
-
-# All numeric feature columns in the merged v1 table (excluding keys).
+# All numeric feature columns in the merged table (excluding join keys).
 CLUSTER_FEATURES: list[str] = [
     # 311 — volume and mix
     "total_311_count",
@@ -64,50 +58,32 @@ _NAN_FILL: float = 0.0
 N_CLUSTERS: int = 4
 
 
-# ---------------------------------------------------------------------------
 # Internal helpers
-# ---------------------------------------------------------------------------
-
-def _neighborhood_profiles(v1: pd.DataFrame) -> pd.DataFrame:
+def _neighborhood_profiles(features: pd.DataFrame) -> pd.DataFrame:
     """
-    Aggregate the 984-row neighborhood-month table to one row per neighborhood
-    by taking the mean of each feature over all months.
+    Aggregate to one row per neighborhood by taking the mean over all months.
 
-    NaN avg columns are filled with _NAN_FILL before averaging so that months
-    with no activity (e.g. no fire incidents → avg_suppression_units is NaN)
+    NaN avg columns are filled before averaging so months with no activity
     are treated as baseline rather than silently dropped.
-
-    Returns:
-        DataFrame with index = neighborhood (41 rows) and one column per
-        feature in CLUSTER_FEATURES.
     """
-    df = v1.copy()
+    df = features.copy()
     for col in ("avg_closure_days", "avg_suppression_units"):
         if col in df.columns:
             df[col] = df[col].fillna(_NAN_FILL)
     return df.groupby("neighborhood")[CLUSTER_FEATURES].mean()
 
 
-def _compute_linkage(v1: pd.DataFrame) -> tuple[np.ndarray, list[str]]:
-    """
-    Build the Ward linkage matrix from v1.
-
-    Returns:
-        (Z, labels) where Z is the scipy linkage matrix and labels is the
-        ordered list of neighborhood names corresponding to the leaf order.
-    """
-    profiles = _neighborhood_profiles(v1)
+def _compute_linkage(features: pd.DataFrame) -> tuple[np.ndarray, list[str]]:
+    """Build the Ward linkage matrix. Returns (Z, neighborhood_labels)."""
+    profiles = _neighborhood_profiles(features)
     labels = profiles.index.tolist()
     X = StandardScaler().fit_transform(profiles.values)
     Z = linkage(X, method="ward", metric="euclidean")
     return Z, labels
 
 
-# ---------------------------------------------------------------------------
-# Public entry point
-# ---------------------------------------------------------------------------
-
-def run_clustering(v1: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+# Entry point
+def run_clustering(features: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Run hierarchical clustering on the merged neighborhood-month table.
 
@@ -120,7 +96,7 @@ def run_clustering(v1: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     5. Build assignments and cluster profile tables.
 
     Args:
-        v1: Merged neighborhood-month table from build_v1_analysis_table.
+        features: Merged neighborhood-month table from build_analysis_table.
 
     Returns:
         Tuple of (assignments, profiles):
@@ -129,7 +105,7 @@ def run_clustering(v1: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
                          then mean of every CLUSTER_FEATURES column
                          (un-standardised for human interpretability)
     """
-    profiles_raw = _neighborhood_profiles(v1)
+    profiles_raw = _neighborhood_profiles(features)
     neighborhoods = profiles_raw.index.tolist()
 
     # Standardise
@@ -140,14 +116,14 @@ def run_clustering(v1: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     Z = linkage(X, method="ward", metric="euclidean")
     raw_labels = fcluster(Z, t=N_CLUSTERS, criterion="maxclust").astype(int)
 
-    # ---- assignments table -----------------------------------------------
+    # assignments table
     assignments = (
         pd.DataFrame({"neighborhood": neighborhoods, "cluster": raw_labels})
         .sort_values("neighborhood")
         .reset_index(drop=True)
     )
 
-    # ---- profiles table (un-standardised means) --------------------------
+    # profiles table (un-standardised means)
     profiles_raw_df = profiles_raw.copy()
     profiles_raw_df["cluster"] = raw_labels
 

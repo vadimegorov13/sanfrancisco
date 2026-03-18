@@ -1,23 +1,23 @@
 """
 Analysis pipeline orchestrator.
 
-Entry point: run_v1_pipeline(output_dir)
+Entry point: run_pipeline(output_dir)
 
 Pipeline steps
 --------------
 [1/9] Load 311 and fire tables from MySQL
-[2/9] Filter 311
-[3/9] Filter fire 
+[2/9] Filter 311 categories
+[3/9] Filter fire incidents
 [4/9] Normalize neighborhood labels
 [5/9] Build 311 neighborhood-month features
 [6/9] Build fire neighborhood-month features
 [7/9] Merge feature tables
 [8/9] Generate figures
-[9/9] Run downstream analysis (Stories 8-10; skipped until implemented)
+[9/9] Run downstream analysis steps
 
-Downstream steps (8-10) are called through thin wrappers that catch
+Downstream steps are called through thin wrappers that catch
 NotImplementedError and log a skip message, so the pipeline still completes
-and saves all data artifacts even before those stories are implemented.
+and saves all artifacts even if a step is not yet implemented.
 """
 
 from __future__ import annotations
@@ -32,14 +32,12 @@ import pandas as pd
 from src.database.db_connector import DatabaseConnector
 from src.preprocessing.aggregator_311 import build_311_features
 from src.preprocessing.aggregator_fire import build_fire_features
-from src.preprocessing.filters_311 import filter_311_v1
-from src.preprocessing.filters_fire import filter_fire_v1
-from src.preprocessing.merger import build_v1_analysis_table
+from src.preprocessing.filters_311 import filter_311
+from src.preprocessing.filters_fire import filter_fire
+from src.preprocessing.merger import build_analysis_table
 from src.preprocessing.neighborhood_normalizer import apply_neighborhood_normalization
 
-# ---------------------------------------------------------------------------
 # SQL queries — load only the columns the pipeline needs
-# ---------------------------------------------------------------------------
 _SQL_311 = (
     "SELECT service_request_id, requested_datetime, closed_date, "
     "service_name, service_subtype, service_details, analysis_neighborhood "
@@ -52,10 +50,7 @@ _SQL_FIRE = (
 )
 
 
-# ---------------------------------------------------------------------------
 # Logging setup
-# ---------------------------------------------------------------------------
-
 def _setup_logging(logs_dir: Path) -> logging.Logger:
     """Configure a logger that writes to both stdout and a timestamped log file."""
     logs_dir.mkdir(parents=True, exist_ok=True)
@@ -82,13 +77,10 @@ def _setup_logging(logs_dir: Path) -> logging.Logger:
     return log
 
 
-# ---------------------------------------------------------------------------
 # Main entry point
-# ---------------------------------------------------------------------------
-
-def run_v1_pipeline(output_dir: str = "outputs") -> None:
+def run_pipeline(output_dir: str = "outputs") -> None:
     """
-    Run the complete v1 neighborhood issue-pressure analysis pipeline.
+    Run the complete neighborhood issue-pressure analysis pipeline.
 
     Creates four sub-directories under output_dir:
       logs/       — timestamped log file for this run
@@ -110,9 +102,7 @@ def run_v1_pipeline(output_dir: str = "outputs") -> None:
 
     log = _setup_logging(logs_dir)
 
-    # ------------------------------------------------------------------
     # [1/9] Load raw tables
-    # ------------------------------------------------------------------
     log.info("[1/9] Loading 311 and fire tables from MySQL")
     with DatabaseConnector() as db:
         raw_311  = db.query(_SQL_311)
@@ -120,25 +110,19 @@ def run_v1_pipeline(output_dir: str = "outputs") -> None:
     log.info(f"      sf_311_cases      : {len(raw_311):,} rows")
     log.info(f"      sf_fire_incidents : {len(raw_fire):,} rows")
 
-    # ------------------------------------------------------------------
     # [2/9] Filter 311
-    # ------------------------------------------------------------------
     log.info("[2/9] Filtering 311")
-    df_311 = filter_311_v1(raw_311)
+    df_311 = filter_311(raw_311)
     raw_311 = None  # release memory
     log.info(f"      rows after filter : {len(df_311):,}")
 
-    # ------------------------------------------------------------------
     # [3/9] Filter fire
-    # ------------------------------------------------------------------
     log.info("[3/9] Filtering fire incidents")
-    df_fire = filter_fire_v1(raw_fire)
+    df_fire = filter_fire(raw_fire)
     raw_fire = None
     log.info(f"      rows after filter : {len(df_fire):,}")
 
-    # ------------------------------------------------------------------
     # [4/9] Normalize neighborhoods
-    # ------------------------------------------------------------------
     log.info("[4/9] Normalizing neighborhood labels")
     df_311  = apply_neighborhood_normalization(df_311,  col="analysis_neighborhood")
     df_fire = apply_neighborhood_normalization(df_fire, col="neighborhood_district")
@@ -150,60 +134,42 @@ def run_v1_pipeline(output_dir: str = "outputs") -> None:
     df_fire.to_csv(tables_dir / "filtered_fire.csv", index=False)
     log.debug("      filtered_311.csv and filtered_fire.csv saved")
 
-    # ------------------------------------------------------------------
     # [5/9] Build 311 neighborhood-month features
-    # ------------------------------------------------------------------
     log.info("[5/9] Building 311 neighborhood-month features")
     features_311 = build_311_features(df_311)
     log.info(f"      shape : {features_311.shape[0]} rows × {features_311.shape[1]} cols")
     features_311.to_csv(tables_dir / "features_311_neighborhood_month.csv", index=False)
 
-    # ------------------------------------------------------------------
     # [6/9] Build fire neighborhood-month features
-    # ------------------------------------------------------------------
     log.info("[6/9] Building fire neighborhood-month features")
     features_fire = build_fire_features(df_fire)
     log.info(f"      shape : {features_fire.shape[0]} rows × {features_fire.shape[1]} cols")
     features_fire.to_csv(tables_dir / "features_fire_neighborhood_month.csv", index=False)
 
-    # ------------------------------------------------------------------
     # [7/9] Merge
-    # ------------------------------------------------------------------
     log.info("[7/9] Merging feature tables")
-    v1 = build_v1_analysis_table(features_311, features_fire)
-    log.info(f"      merged shape : {v1.shape[0]} rows × {v1.shape[1]} cols")
-    v1.to_csv(tables_dir / "v1_neighborhood_month.csv", index=False)
+    merged = build_analysis_table(features_311, features_fire)
+    log.info(f"      merged shape : {merged.shape[0]} rows × {merged.shape[1]} cols")
+    merged.to_csv(tables_dir / "neighborhood_month.csv", index=False)
 
-    # ------------------------------------------------------------------
     # [8/9] Figures
-    # ------------------------------------------------------------------
     log.info("[8/9] Generating figures")
     from .plotter import save_all_figures
-    n_figs = save_all_figures(v1, figures_dir)
+    n_figs = save_all_figures(merged, figures_dir)
     log.info(f"      {n_figs} figure(s) saved to {figures_dir}/")
 
-    # ------------------------------------------------------------------
-    # [9/9] Downstream analysis (stubs until Stories 8-10 are implemented)
-    # ------------------------------------------------------------------
     log.info("[9/9] Running downstream analysis steps")
-    _run_scorer(v1, tables_dir, figures_dir, log)
-    _run_clusterer(v1, tables_dir, figures_dir, log)
-    _run_anomaly(v1, tables_dir, figures_dir, log)
+    _run_scorer(merged, tables_dir, figures_dir, log)
+    _run_clusterer(merged, tables_dir, figures_dir, log)
+    _run_anomaly(merged, tables_dir, figures_dir, log)
 
-    # ------------------------------------------------------------------
-    # Summary
-    # ------------------------------------------------------------------
-    _write_summary(v1, df_311, df_fire, summaries_dir, log)
+    _write_summary(merged, df_311, df_fire, summaries_dir, log)
 
     log.info(f"Done. All outputs saved to {out}/")
 
-
-# ---------------------------------------------------------------------------
-# Downstream step wrappers (catch NotImplementedError until stories land)
-# ---------------------------------------------------------------------------
-
+# Downstream step wrappers
 def _run_scorer(
-    v1: pd.DataFrame,
+    merged: pd.DataFrame,
     tables_dir: Path,
     figures_dir: Path,
     log: logging.Logger,
@@ -212,18 +178,15 @@ def _run_scorer(
         from .scorer import compute_scores, score_neighborhood_months
         log.info("      [8] Computing composite issue-pressure scores")
 
-        # Neighborhood-month level scores
-        monthly_scores = score_neighborhood_months(v1)
+        monthly_scores = score_neighborhood_months(merged)
         monthly_scores.to_csv(tables_dir / "neighborhood_month_scores.csv", index=False)
         log.info(f"           saved neighborhood_month_scores.csv — {len(monthly_scores):,} rows")
 
-        # Neighborhood summary scores
-        scores = compute_scores(v1)
+        scores = compute_scores(merged)
         scores.to_csv(tables_dir / "neighborhood_scores.csv", index=False)
         log.info(f"           saved neighborhood_scores.csv — {len(scores):,} rows")
         log.info(f"           top 5: {scores.head(5)['neighborhood'].tolist()}")
 
-        # Score figure
         from .plotter import save_score_figure
         save_score_figure(scores, figures_dir)
         log.info("           saved top_neighborhoods_score.png")
@@ -233,7 +196,7 @@ def _run_scorer(
 
 
 def _run_clusterer(
-    v1: pd.DataFrame,
+    merged: pd.DataFrame,
     tables_dir: Path,
     figures_dir: Path,
     log: logging.Logger,
@@ -241,25 +204,23 @@ def _run_clusterer(
     try:
         from .clusterer import run_clustering
         log.info("      [9] Running hierarchical clustering")
-        assignments, profiles = run_clustering(v1)
+        assignments, profiles = run_clustering(merged)
         assignments.to_csv(tables_dir / "cluster_assignments.csv", index=False)
         profiles.to_csv(tables_dir / "cluster_profiles.csv", index=False)
         log.info(f"           saved cluster_assignments.csv — {len(assignments):,} neighborhoods")
         log.info(f"           saved cluster_profiles.csv — {len(profiles):,} clusters")
 
-        # Log cluster composition
         for _, row in profiles.iterrows():
             nbhds = assignments.loc[
                 assignments["cluster"] == row["cluster"], "neighborhood"
-            ].tolist()
+            ].tolist() # type: ignore
             log.info(
                 f"           cluster {int(row['cluster'])} "
-                f"(n={int(row['n_neighborhoods'])}): {', '.join(sorted(nbhds))}"
+                f"(n={int(row['n_neighborhoods'])}): {', '.join(sorted(nbhds))}" # type: ignore
             )
 
-        # Figures: dendrogram + cluster profile heatmap
         from .plotter import save_cluster_figures
-        n_figs = save_cluster_figures(v1, assignments, profiles, figures_dir)
+        n_figs = save_cluster_figures(merged, assignments, profiles, figures_dir)
         log.info(f"           saved {n_figs} clustering figure(s) to {figures_dir}/")
 
     except NotImplementedError:
@@ -267,7 +228,7 @@ def _run_clusterer(
 
 
 def _run_anomaly(
-    v1: pd.DataFrame,
+    merged: pd.DataFrame,
     tables_dir: Path,
     figures_dir: Path,
     log: logging.Logger,
@@ -275,7 +236,7 @@ def _run_anomaly(
     try:
         from .anomaly import FLAG_MIN_FEATURES, run_anomaly_detection
         log.info("      [10] Running anomaly detection")
-        anomalies = run_anomaly_detection(v1)
+        anomalies = run_anomaly_detection(merged)
         anomalies.to_csv(tables_dir / "anomaly_scores.csv", index=False)
         log.info(f"            saved anomaly_scores.csv — {len(anomalies):,} rows")
 
@@ -298,33 +259,30 @@ def _run_anomaly(
         log.info("      [10] Anomaly detection not yet implemented — skipping")
 
 
-# ---------------------------------------------------------------------------
 # Summary markdown
-# ---------------------------------------------------------------------------
-
 def _write_summary(
-    v1: pd.DataFrame,
+    merged: pd.DataFrame,
     df_311: pd.DataFrame,
     df_fire: pd.DataFrame,
     summaries_dir: Path,
     log: logging.Logger,
 ) -> None:
-    n_nbhd   = v1["neighborhood"].nunique()
-    n_months = v1["year_month"].nunique()
+    n_nbhd   = merged["neighborhood"].nunique()
+    n_months = merged["year_month"].nunique()
 
     top5_311 = (
-        v1.groupby("neighborhood")["total_311_count"].sum()
+        merged.groupby("neighborhood")["total_311_count"].sum()
         .sort_values(ascending=False)
         .head(5)
     )
     top5_fire = (
-        v1.groupby("neighborhood")["total_fire_count"].sum()
+        merged.groupby("neighborhood")["total_fire_count"].sum()
         .sort_values(ascending=False)
         .head(5)
     )
 
     lines = [
-        "# v1 Analysis Summary",
+        "# Analysis Summary",
         "",
         f"**Generated:** {date.today().isoformat()}",
         "**Time window:** 2024-01 to 2025-12",
@@ -336,7 +294,7 @@ def _write_summary(
         "| ------- | ------------- |",
         f"| sf_311_cases (filtered) | {len(df_311):,} |",
         f"| sf_fire_incidents (filtered) | {len(df_fire):,} |",
-        f"| Merged table | {len(v1):,} rows × {v1.shape[1]} cols "
+        f"| Merged table | {len(merged):,} rows × {merged.shape[1]} cols "
         f"({n_nbhd} neighborhoods × {n_months} months) |",
         "",
         "## Top 5 neighborhoods by 311 volume",

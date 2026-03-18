@@ -5,7 +5,7 @@ single analysis-ready table with one row per (neighborhood, year_month).
 Join strategy
 -------------
 The spine is the **full Cartesian product** of all 41 canonical neighborhoods
-x all 24 months in the v1 window (2024-01 through 2025-12), giving 984 rows.
+x all 24 months in the window (2024-01 through 2025-12), giving 984 rows.
 
 Both the 311 and fire feature tables are left-joined onto this spine so that:
 
@@ -30,25 +30,25 @@ filling with 0 would be misleading (a mean of 0 implies infrastructure is
 faster/lighter than any real month, not that there was no activity).
 
 Usage:
-    from src.preprocessing.filters_311 import filter_311_v1
-    from src.preprocessing.filters_fire import filter_fire_v1
+    from src.preprocessing.filters_311 import filter_311
+    from src.preprocessing.filters_fire import filter_fire
     from src.preprocessing.aggregator_311 import build_311_features
     from src.preprocessing.aggregator_fire import build_fire_features
     from src.preprocessing.neighborhood_normalizer import apply_neighborhood_normalization
-    from src.preprocessing.merger import build_v1_analysis_table
+    from src.preprocessing.merger import build_analysis_table
 
     # --- 311 pipeline ---
-    df_311 = filter_311_v1(raw_311)
+    df_311 = filter_311(raw_311)
     df_311 = apply_neighborhood_normalization(df_311, col="analysis_neighborhood")
     features_311 = build_311_features(df_311)
 
     # --- fire pipeline ---
-    df_fire = filter_fire_v1(raw_fire)
+    df_fire = filter_fire(raw_fire)
     df_fire = apply_neighborhood_normalization(df_fire, col="neighborhood_district")
     features_fire = build_fire_features(df_fire)
 
     # --- merge ---
-    v1 = build_v1_analysis_table(features_311, features_fire)
+    merged = build_analysis_table(features_311, features_fire)
 """
 
 from __future__ import annotations
@@ -57,13 +57,12 @@ import pandas as pd
 
 from .neighborhood_normalizer import CANONICAL_NEIGHBORHOODS
 
-# time window helpers
-V1_START_MONTH = "2024-01"
-V1_END_MONTH   = "2025-12"   # inclusive
+# Time window
+START_MONTH = "2024-01"
+END_MONTH   = "2025-12"   # inclusive
 
-# Generate the complete list of 24 months in the v1 window.
-_V1_MONTHS: list[str] = (
-    pd.period_range(start=V1_START_MONTH, end=V1_END_MONTH, freq="M")
+_MONTHS: list[str] = (
+    pd.period_range(start=START_MONTH, end=END_MONTH, freq="M")
     .strftime("%Y-%m")
     .tolist()
 )
@@ -97,7 +96,7 @@ _FIRE_FLOAT_COLS: list[str] = [
 ]
 
 
-def build_v1_analysis_table(
+def build_analysis_table(
     features_311: pd.DataFrame,
     features_fire: pd.DataFrame,
 ) -> pd.DataFrame:
@@ -124,7 +123,7 @@ def build_v1_analysis_table(
         [
             {"neighborhood": nbhd, "year_month": ym}
             for nbhd in CANONICAL_NEIGHBORHOODS
-            for ym in _V1_MONTHS
+            for ym in _MONTHS
         ]
     )
 

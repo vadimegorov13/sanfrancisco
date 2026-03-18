@@ -14,7 +14,7 @@ Why this approach?
   * Directional — we flag only the high-pressure direction (z > +threshold),
     not unusually quiet months, which better matches the issue-pressure framing.
   * No hyper-parameters beyond the threshold and minimum-feature count.
-  * Easy to compare against the composite pressure score (Story 8).
+  * Easy to compare against the composite pressure score.
 
 Output columns
 --------------
@@ -34,10 +34,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-# ---------------------------------------------------------------------------
 # Configuration
-# ---------------------------------------------------------------------------
-
 # Features included in anomaly scoring.
 # Per-category count sub-columns are included so the reader can see *which*
 # category drove a spike in a given month.
@@ -66,19 +63,16 @@ Z_THRESHOLD: float = 2.0
 # Minimum number of spiking features for a row to be considered anomalous.
 FLAG_MIN_FEATURES: int = 2
 
-# NaN fill before z-scoring (same logic as scorer — no activity = baseline 0).
+# NaN fill before z-scoring (no activity = baseline 0).
 _NAN_FILL: float = 0.0
 
 
-# ---------------------------------------------------------------------------
-# Public entry point
-# ---------------------------------------------------------------------------
-def run_anomaly_detection(v1: pd.DataFrame) -> pd.DataFrame:
+def run_anomaly_detection(features: pd.DataFrame) -> pd.DataFrame:
     """
     Identify unusual neighborhood-months using per-feature z-scores.
 
     Args:
-        v1: Merged neighborhood-month table from build_v1_analysis_table.
+        features: Merged neighborhood-month table from build_analysis_table.
             Must contain columns: neighborhood, year_month, and all
             columns in ANOMALY_FEATURES.
 
@@ -86,17 +80,15 @@ def run_anomaly_detection(v1: pd.DataFrame) -> pd.DataFrame:
         DataFrame sorted descending by anomaly_score. Contains:
           neighborhood, year_month, anomaly_score, top_feature, top_z,
           n_features_spiked, plus one <feature>_z column per scored feature.
-        Only rows with anomaly_score >= FLAG_MIN_FEATURES are returned, plus
-        all rows are included with their scores so the caller can slice further.
     """
-    df = v1.copy()
+    df = features.copy()
 
-    # Fill NaN in avg columns so they participate in z-scoring.
+    # Fill NaN in avg columns.
     for col in ("avg_closure_days", "avg_suppression_units"):
         if col in df.columns:
             df[col] = df[col].fillna(_NAN_FILL)
 
-    # ---- Compute per-feature z-scores ------------------------------------
+    # Per-feature z-scores
     z_cols: dict[str, str] = {}
     for feat in ANOMALY_FEATURES:
         if feat not in df.columns:
@@ -112,12 +104,12 @@ def run_anomaly_detection(v1: pd.DataFrame) -> pd.DataFrame:
 
     present_z = list(z_cols.values())
 
-    # ---- Anomaly score = count of features where z > Z_THRESHOLD ----------
+    # Anomaly score = count of features where z > Z_THRESHOLD
     z_matrix = df[present_z].values
     df["anomaly_score"] = (z_matrix > Z_THRESHOLD).sum(axis=1).astype(int)
     df["n_features_spiked"] = df["anomaly_score"]
 
-    # ---- Identify the single most-spiking feature per row -----------------
+    # Identify the top-spiking feature per row
     if present_z:
         best_idx = np.argmax(z_matrix, axis=1)
         feat_names = list(z_cols.keys())
@@ -127,7 +119,7 @@ def run_anomaly_detection(v1: pd.DataFrame) -> pd.DataFrame:
         df["top_feature"] = ""
         df["top_z"] = 0.0
 
-    # ---- Assemble output -------------------------------------------------
+    # Assemble output
     out_cols = (
         ["neighborhood", "year_month", "anomaly_score",
          "top_feature", "top_z", "n_features_spiked"]

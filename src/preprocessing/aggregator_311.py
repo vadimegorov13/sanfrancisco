@@ -12,13 +12,13 @@ Feature columns produced:
   count_streetlights    — count of streetlights group rows
   count_traffic_signs   — count of traffic_signs group rows
   count_trees           — count of trees group rows
-  distinct_issue_groups — number of distinct v1_issue_groups present
+  distinct_issue_groups — number of distinct issue groups present
   avg_closure_days      — mean closure time in calendar days (positive only,
                           capped at MAX_CLOSURE_DAYS; NaN if no valid rows)
 
 Usage:
     df_raw      = db.query("SELECT * FROM assignment_1.sf_311_cases")
-    df_filtered = filter_311_v1(df_raw)
+    df_filtered = filter_311(df_raw)
     df_filtered = apply_neighborhood_normalization(df_filtered, col="analysis_neighborhood")
     features    = build_311_features(df_filtered)
 """
@@ -53,7 +53,7 @@ def build_311_features(df: pd.DataFrame) -> pd.DataFrame:
     The input DataFrame must have already been processed by filter_311 and
     apply_neighborhood_normalization, so it has:
       - `neighborhood`       (str)  canonical neighborhood label
-      - `v1_issue_group`     (str)  one of the 9 v1 issue groups
+      - `issue_group`        (str)  one of the 9 issue groups
       - `requested_datetime` (datetime or parseable str) request open timestamp
       - `closed_date`        (datetime or parseable str) request close timestamp
       - `service_request_id` (any)  present for total count
@@ -85,11 +85,11 @@ def build_311_features(df: pd.DataFrame) -> pd.DataFrame:
     valid_closure = delta.where(delta > 0)                     # NaN if <= 0
     df["closure_days"] = valid_closure.clip(upper=MAX_CLOSURE_DAYS)
 
-    # Boolean indicators for individually-counted groups ------------------
+    # Boolean indicators for individually-counted groups
     for group in _COUNTED_GROUPS:
-        df[f"_is_{group}"] = (df["v1_issue_group"] == group).astype("int8")
+        df[f"_is_{group}"] = (df["issue_group"] == group).astype("int8")
 
-    # Aggregate by (neighborhood, year_month) -----------------------------
+    # Aggregate by (neighborhood, year_month)
     group_keys = ["neighborhood", "year_month"]
 
     agg: dict[str, tuple] = {
@@ -98,7 +98,7 @@ def build_311_features(df: pd.DataFrame) -> pd.DataFrame:
             f"count_{g}": (f"_is_{g}", "sum")
             for g in _COUNTED_GROUPS
         },
-        "distinct_issue_groups": ("v1_issue_group", "nunique"),
+        "distinct_issue_groups": ("issue_group", "nunique"),
         "avg_closure_days":      ("closure_days", "mean"),
     }
 

@@ -1,7 +1,7 @@
 """
 Fire incident neighborhood-month aggregation
 
-Takes a filtered sf_fire_incidents DataFrame (output of filter_fire_v1) and
+Takes a filtered sf_fire_incidents DataFrame (output of filter_fire) and
 produces one row per (neighborhood, year_month) with the 7 fire feature
 columns
 
@@ -15,12 +15,12 @@ Feature columns produced:
   avg_suppression_units — mean suppression_units per incident (float)
 
 Usage:
-    from src.preprocessing.filters_fire import filter_fire_v1
+    from src.preprocessing.filters_fire import filter_fire
     from src.preprocessing.aggregator_fire import build_fire_features
     from src.preprocessing.neighborhood_normalizer import apply_neighborhood_normalization
 
     df_raw      = db.query("SELECT * FROM assignment_1.sf_fire_incidents")
-    df_filtered = filter_fire_v1(df_raw)
+    df_filtered = filter_fire(df_raw)
     df_filtered = apply_neighborhood_normalization(df_filtered, col="neighborhood_district")
     features    = build_fire_features(df_filtered)
 """
@@ -30,7 +30,7 @@ from __future__ import annotations
 import pandas as pd
 
 # Groups that get their own count column in the fire feature table.
-# Key = v1_incident_group value; value = column name suffix (count_fire_{suffix}).
+# Key = incident_group value; value = column name suffix (count_fire_{suffix}).
 _COUNTED_GROUPS: dict[str, str] = {
     "building_fire": "building",
     "electrical":    "electrical",
@@ -43,10 +43,10 @@ def build_fire_features(df: pd.DataFrame) -> pd.DataFrame:
     """
     Aggregate a filtered fire DataFrame into a neighborhood-month feature table.
 
-    The input DataFrame must have already been processed by filter_fire_v1 and
+    The input DataFrame must have already been processed by filter_fire and
     apply_neighborhood_normalization, so it has:
       - `neighborhood`      (str)      canonical neighborhood label
-      - `v1_incident_group` (str)      one of the 4 v1 incident groups
+      - `incident_group`     (str)      one of the 4 incident groups
       - `incident_date`     (datetime or parseable str or None)
       - `fire_injuries`     (str or numeric)  injuries to fire personnel
       - `civilian_injuries` (str or numeric)  injuries to civilians
@@ -68,7 +68,7 @@ def build_fire_features(df: pd.DataFrame) -> pd.DataFrame:
     """
     df = df.copy()
 
-    # Parse incident_date if still a string (filter_fire_v1 parses it, but be defensive)
+    # Parse incident_date if still a string (filter_fire parses it, but be defensive)
     df["incident_date"] = pd.to_datetime(df["incident_date"], errors="coerce")
 
     # Derive year_month from incident date
@@ -84,7 +84,7 @@ def build_fire_features(df: pd.DataFrame) -> pd.DataFrame:
 
     # Boolean indicators for individually-counted groups
     for group in _COUNTED_GROUPS:
-        df[f"_is_{group}"] = (df["v1_incident_group"] == group).astype("int8")
+        df[f"_is_{group}"] = (df["incident_group"] == group).astype("int8")
 
     # Aggregate by (neighborhood, year_month)
     group_keys = ["neighborhood", "year_month"]

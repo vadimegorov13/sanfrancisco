@@ -1,8 +1,8 @@
 """
-Figure generation for the v1 pipeline.
+Figure generation for the analysis pipeline.
 
-All figures are generated from the merged neighborhood-month table (v1)
-produced by build_v1_analysis_table. Every function saves a PNG and returns 1
+All figures are generated from the merged neighborhood-month table
+produced by build_analysis_table. Every function saves a PNG and returns 1
 so the caller can count saved figures.
 
 Figures produced:
@@ -15,19 +15,16 @@ Figures produced:
 
 from __future__ import annotations
 
-import matplotlib
-
-matplotlib.use("Agg")  # headless — must be set before importing pyplot
-
 from pathlib import Path
 
+import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import pandas as pd
 
-# ---------------------------------------------------------------------------
+matplotlib.use("Agg")  # headless — must be set before importing pyplot
+
 # Style
-# ---------------------------------------------------------------------------
 try:
     plt.style.use("seaborn-v0_8-whitegrid")
 except OSError:
@@ -36,17 +33,12 @@ except OSError:
 _COLOR_311  = "#4C72B0"
 _COLOR_FIRE = "#DD8452"
 
-
-# ---------------------------------------------------------------------------
-# Public entry point
-# ---------------------------------------------------------------------------
-
-def save_all_figures(v1: pd.DataFrame, figures_dir: Path) -> int:
+def save_all_figures(features: pd.DataFrame, figures_dir: Path) -> int:
     """
-    Generate and save all v1 figures.
+    Generate and save all base figures.
 
     Args:
-        v1:          Merged neighborhood-month table (984 rows × 18 cols).
+        features:    Merged neighborhood-month table.
         figures_dir: Output directory for PNG files (created if absent).
 
     Returns:
@@ -54,28 +46,25 @@ def save_all_figures(v1: pd.DataFrame, figures_dir: Path) -> int:
     """
     figures_dir.mkdir(parents=True, exist_ok=True)
     n = 0
-    n += _monthly_311_volume(v1, figures_dir)
-    n += _top_neighborhoods_311(v1, figures_dir)
-    n += _category_distribution_311(v1, figures_dir)
-    n += _top_neighborhoods_fire(v1, figures_dir)
-    n += _category_distribution_fire(v1, figures_dir)
+    n += _monthly_311_volume(features, figures_dir)
+    n += _top_neighborhoods_311(features, figures_dir)
+    n += _category_distribution_311(features, figures_dir)
+    n += _top_neighborhoods_fire(features, figures_dir)
+    n += _category_distribution_fire(features, figures_dir)
     return n
 
 
-# ---------------------------------------------------------------------------
 # Individual figure functions
-# ---------------------------------------------------------------------------
-
-def _save(fig: plt.Figure, path: Path) -> int:
+def _save(fig: plt.Figure, path: Path) -> int: # type: ignore
     fig.savefig(path, dpi=150, bbox_inches="tight")
     plt.close(fig)
     return 1
 
 
-def _monthly_311_volume(v1: pd.DataFrame, out: Path) -> int:
+def _monthly_311_volume(features: pd.DataFrame, out: Path) -> int:
     """Line chart: total filtered 311 cases per month across all neighborhoods."""
     monthly = (
-        v1.groupby("year_month")["total_311_count"]
+        features.groupby("year_month")["total_311_count"]
         .sum()
         .reset_index()
         .sort_values("year_month")
@@ -99,17 +88,17 @@ def _monthly_311_volume(v1: pd.DataFrame, out: Path) -> int:
     return _save(fig, out / "monthly_311_volume.png")
 
 
-def _top_neighborhoods_311(v1: pd.DataFrame, out: Path) -> int:
+def _top_neighborhoods_311(features: pd.DataFrame, out: Path) -> int:
     """Horizontal bar chart: top 15 neighborhoods by total filtered 311 cases."""
     top = (
-        v1.groupby("neighborhood")["total_311_count"]
+        features.groupby("neighborhood")["total_311_count"]
         .sum()
         .sort_values(ascending=True)   # ascending so longest bar is at top
         .tail(15)
     )
 
     fig, ax = plt.subplots(figsize=(9, 5))
-    ax.barh(top.index, top.values, color=_COLOR_311)
+    ax.barh(top.index, top.values, color=_COLOR_311)  # type: ignore
     ax.set_title("Top 15 Neighborhoods by Total Filtered 311 Cases (2024–2025)", fontsize=12)
     ax.set_xlabel("Total filtered cases")
     ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{int(x):,}"))
@@ -117,9 +106,8 @@ def _top_neighborhoods_311(v1: pd.DataFrame, out: Path) -> int:
     return _save(fig, out / "top_neighborhoods_311.png")
 
 
-def _category_distribution_311(v1: pd.DataFrame, out: Path) -> int:
+def _category_distribution_311(features: pd.DataFrame, out: Path) -> int:
     """Horizontal bar chart: aggregate 311 cases by issue category."""
-    # Named count columns and their display labels
     count_cols = {
         "Street / Pavement": "count_street_pavement",
         "Sidewalk / Curb":   "count_sidewalk_curb",
@@ -128,18 +116,17 @@ def _category_distribution_311(v1: pd.DataFrame, out: Path) -> int:
         "Traffic Signs":     "count_traffic_signs",
         "Trees":             "count_trees",
     }
-    # "Other" = whatever is in total but not in the six named groups
-    named_total = sum(v1[col].sum() for col in count_cols.values())
-    other_total = int(v1["total_311_count"].sum()) - int(named_total)
+    named_total = sum(features[col].sum() for col in count_cols.values())
+    other_total = int(features["total_311_count"].sum()) - int(named_total)
 
-    totals = {label: int(v1[col].sum()) for label, col in count_cols.items()}
+    totals = {label: int(features[col].sum()) for label, col in count_cols.items()}
     if other_total > 0:
         totals["Other (water, damage, blockage)"] = other_total
 
     series = pd.Series(totals).sort_values(ascending=True)
 
     fig, ax = plt.subplots(figsize=(9, 5))
-    ax.barh(series.index, series.values, color=_COLOR_311)
+    ax.barh(series.index, series.values, color=_COLOR_311) # type: ignore
     ax.set_title("Filtered 311 Cases by Issue Category — 2024 to 2025 Total", fontsize=12)
     ax.set_xlabel("Total filtered cases")
     ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{int(x):,}"))
@@ -147,17 +134,17 @@ def _category_distribution_311(v1: pd.DataFrame, out: Path) -> int:
     return _save(fig, out / "311_category_distribution.png")
 
 
-def _top_neighborhoods_fire(v1: pd.DataFrame, out: Path) -> int:
+def _top_neighborhoods_fire(features: pd.DataFrame, out: Path) -> int:
     """Horizontal bar chart: top 15 neighborhoods by total filtered fire incidents."""
     top = (
-        v1.groupby("neighborhood")["total_fire_count"]
+        features.groupby("neighborhood")["total_fire_count"]
         .sum()
         .sort_values(ascending=True)
         .tail(15)
     )
 
     fig, ax = plt.subplots(figsize=(9, 5))
-    ax.barh(top.index, top.values, color=_COLOR_FIRE)
+    ax.barh(top.index, top.values, color=_COLOR_FIRE) # type: ignore
     ax.set_title("Top 15 Neighborhoods by Filtered Fire Incidents (2024–2025)", fontsize=12)
     ax.set_xlabel("Total filtered incidents")
     ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{int(x):,}"))
@@ -165,7 +152,7 @@ def _top_neighborhoods_fire(v1: pd.DataFrame, out: Path) -> int:
     return _save(fig, out / "top_neighborhoods_fire.png")
 
 
-def _category_distribution_fire(v1: pd.DataFrame, out: Path) -> int:
+def _category_distribution_fire(features: pd.DataFrame, out: Path) -> int:
     """Horizontal bar chart: aggregate fire incidents by incident category."""
     count_cols = {
         "Building fire":  "count_fire_building",
@@ -174,11 +161,11 @@ def _category_distribution_fire(v1: pd.DataFrame, out: Path) -> int:
         "Water utility":  "count_fire_water",
     }
 
-    totals = {label: int(v1[col].sum()) for label, col in count_cols.items()}
+    totals = {label: int(features[col].sum()) for label, col in count_cols.items()}
     series = pd.Series(totals).sort_values(ascending=True)
 
     fig, ax = plt.subplots(figsize=(8, 4))
-    ax.barh(series.index, series.values, color=_COLOR_FIRE)
+    ax.barh(series.index, series.values, color=_COLOR_FIRE) # type: ignore
     ax.set_title("Filtered Fire Incidents by Category — 2024 to 2025 Total", fontsize=12)
     ax.set_xlabel("Total filtered incidents")
     ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{int(x):,}"))
@@ -187,24 +174,17 @@ def _category_distribution_fire(v1: pd.DataFrame, out: Path) -> int:
 
 
 def save_score_figure(scores: pd.DataFrame, out: Path) -> int:
-    """
-    Horizontal bar chart: all 41 neighborhoods ranked by mean pressure score.
-
-    Args:
-        scores: Output of compute_scores() — one row per neighborhood,
-                columns include 'neighborhood' and 'mean_pressure_score'.
-        out:    Directory to write top_neighborhoods_score.png.
-    """
+    """Horizontal bar chart: all 41 neighborhoods ranked by mean pressure score."""
     sorted_scores = scores.sort_values("mean_pressure_score", ascending=True)
 
     fig, ax = plt.subplots(figsize=(9, 9))
-    bars = ax.barh(
+    ax.barh(
         sorted_scores["neighborhood"],
         sorted_scores["mean_pressure_score"],
         color="#2ca02c",
     )
     ax.set_title(
-        "Neighborhood Issue-Pressure Score\n(mean monthly composite, 2024–2025)",
+        "Neighborhood Issue-Pressure Score\n(mean monthly composite, 2024-2025)",
         fontsize=12,
     )
     ax.set_xlabel("Mean pressure score (0–100)")
@@ -219,7 +199,7 @@ def save_score_figure(scores: pd.DataFrame, out: Path) -> int:
 # Clustering figures
 
 def save_cluster_figures(
-    v1: pd.DataFrame,
+    merged: pd.DataFrame,
     assignments: pd.DataFrame,
     profiles: pd.DataFrame,
     figures_dir: Path,
@@ -230,7 +210,7 @@ def save_cluster_figures(
       cluster_profile_heatmap.png — standardised mean feature values per cluster
 
     Args:
-        v1:          Merged neighborhood-month table (needed to recompute linkage).
+        merged:      Merged neighborhood-month table (needed to recompute linkage).
         assignments: Output of run_clustering() — neighborhood + cluster columns.
         profiles:    Output of run_clustering() — cluster profiles (raw means).
         figures_dir: Directory to save PNG files.
@@ -240,28 +220,27 @@ def save_cluster_figures(
     """
     figures_dir.mkdir(parents=True, exist_ok=True)
     n = 0
-    n += _dendrogram_figure(v1, assignments, figures_dir)
+    n += _dendrogram_figure(merged, assignments, figures_dir)
     n += _cluster_heatmap_figure(profiles, figures_dir)
     return n
 
 
 def _dendrogram_figure(
-    v1: pd.DataFrame,
+    merged: pd.DataFrame,
     assignments: pd.DataFrame,
     out: Path,
 ) -> int:
     """Ward linkage dendrogram with leaf labels coloured by cluster assignment."""
     from scipy.cluster.hierarchy import dendrogram as _scipy_dendrogram
-    from sklearn.preprocessing import StandardScaler
 
     from .clusterer import N_CLUSTERS, _compute_linkage
 
-    Z, labels = _compute_linkage(v1)
+    Z, labels = _compute_linkage(merged)
 
     # Build a label → cluster map for leaf colouring
     label_to_cluster = assignments.set_index("neighborhood")["cluster"].to_dict()
     n_clusters = N_CLUSTERS
-    _palette = plt.cm.get_cmap("tab10", n_clusters)
+    _palette = plt.cm.get_cmap("tab10", n_clusters) # type: ignore
     cluster_colors = {c: _palette(c - 1) for c in range(1, n_clusters + 1)}
 
     # Determine color threshold so that exactly N_CLUSTERS branches are coloured
@@ -345,7 +324,6 @@ def _cluster_heatmap_figure(profiles: pd.DataFrame, out: Path) -> int:
         fmt="g",
         cmap="RdYlGn_r",
         center=0,
-        linewidths=0.5,
         ax=ax,
         cbar_kws={"label": "z-score across clusters"},
     )
@@ -361,28 +339,10 @@ def _cluster_heatmap_figure(profiles: pd.DataFrame, out: Path) -> int:
     return _save(fig, out / "cluster_profile_heatmap.png")
 
 
-# ---------------------------------------------------------------------------
-# Story 10 — anomaly figure
-# ---------------------------------------------------------------------------
+# Anomaly figure
 
 def save_anomaly_figure(anomalies: pd.DataFrame, figures_dir: Path) -> int:
-    """
-    Scatter plot: anomaly score vs. total_311_count for all neighborhood-months.
-
-    Each dot is one neighborhood-month. The x-axis shows its 311 volume
-    (a proxy for general activity level) and the y-axis shows how many
-    features spiked above 2σ. Flagged rows (anomaly_score >= 2) are coloured
-    and labelled with their neighborhood + month so the reader can identify
-    standout cases immediately.
-
-    Args:
-        anomalies:   Output of run_anomaly_detection() — all 984 rows,
-                     sorted descending by anomaly_score.
-        figures_dir: Directory to write anomaly_scatter.png.
-
-    Returns:
-        1 (number of figures saved).
-    """
+    """Scatter plot: anomaly score vs. 311 volume z-score for all neighborhood-months."""
     from src.analysis.anomaly import FLAG_MIN_FEATURES
 
     flagged = anomalies[anomalies["anomaly_score"] >= FLAG_MIN_FEATURES]

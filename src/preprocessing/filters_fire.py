@@ -2,22 +2,22 @@
 Fire incident filtering
 
 Applies the inclusion rules to a raw sf_fire_incidents DataFrame and
-assigns each surviving row to a v1_incident_group.
+assigns each surviving row to an incident_group.
 
 All filtering logic is expressed as named constants so changes can be made in
 one place without touching aggregation or pipeline code.
 
 Usage:
     df_raw = db.query("SELECT * FROM assignment_1.sf_fire_incidents")
-    df_filtered = filter_fire_v1(df_raw)
+    df_filtered = filter_fire(df_raw)
 """
 
 from __future__ import annotations
 
 import pandas as pd
 
-V1_START_DATE = "2024-01-01"
-V1_END_DATE   = "2026-01-01"   # exclusive upper bound → effectively 2025-12-31
+START_DATE = "2024-01-01"
+END_DATE   = "2026-01-01"   # exclusive upper bound → effectively 2025-12-31
 
 # Structural / property fires
 BUILDING_FIRE_SITUATIONS: frozenset[str] = frozenset({
@@ -71,8 +71,8 @@ _SITUATION_TO_GROUP: dict[str, str] = {
     "522 Water or steam leak":  "water_utility",
 }
 
-# Ordered list of all 4 groups (used externally for consistency).
-V1_INCIDENT_GROUPS: list[str] = [
+# Ordered list of all 4 incident groups.
+INCIDENT_GROUPS: list[str] = [
     "building_fire",
     "electrical",
     "gas",
@@ -80,10 +80,10 @@ V1_INCIDENT_GROUPS: list[str] = [
 ]
 
 
-def filter_fire_v1(
+def filter_fire(
     df: pd.DataFrame,
-    start_date: str = V1_START_DATE,
-    end_date: str = V1_END_DATE,
+    start_date: str = START_DATE,
+    end_date: str = END_DATE,
 ) -> pd.DataFrame:
     """
     Apply filtering rules to a raw sf_fire_incidents DataFrame.
@@ -92,8 +92,8 @@ def filter_fire_v1(
       1. Parse incident_date (stored as TEXT) to datetime.
       2. Apply time window [start_date, end_date).
       3. Require non-null neighborhood_district.
-      4. Filter to v1 primary_situation include set.
-      5. Assign v1_incident_group to every surviving row.
+      4. Filter to included primary_situation values.
+      5. Assign incident_group to every surviving row.
 
     All numeric columns (fire_injuries, civilian_injuries, suppression_units)
     are left as-is here; the aggregator casts them.
@@ -104,7 +104,7 @@ def filter_fire_v1(
         end_date:   Exclusive upper bound for incident_date (ISO date string).
 
     Returns:
-        Filtered DataFrame with a new `v1_incident_group` column.
+        Filtered DataFrame with a new `incident_group` column.
         Index is reset.
     """
     df = df.copy()
@@ -126,15 +126,15 @@ def filter_fire_v1(
     # Situation include filter
     df = df[df["primary_situation"].isin(ALL_INCLUDED_SITUATIONS)]
 
-    # Assign v1_incident_group
-    df["v1_incident_group"] = df["primary_situation"].map(_SITUATION_TO_GROUP)
+    # Assign incident_group
+    df["incident_group"] = df["primary_situation"].map(_SITUATION_TO_GROUP)
 
-    n_missing = df["v1_incident_group"].isna().sum()
+    n_missing = df["incident_group"].isna().sum()
     if n_missing > 0:
-        unmapped = df.loc[df["v1_incident_group"].isna(), "primary_situation"].unique().tolist()
+        unmapped = df.loc[df["incident_group"].isna(), "primary_situation"].unique().tolist()
         raise ValueError(
-            f"filter_fire_v1: {n_missing} rows could not be assigned a "
-            f"v1_incident_group. Unmapped primary_situation values: {unmapped}"
+            f"filter_fire: {n_missing} rows could not be assigned an "
+            f"incident_group. Unmapped primary_situation values: {unmapped}"
         )
 
     return df.reset_index(drop=True)
