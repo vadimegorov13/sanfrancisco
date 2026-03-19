@@ -5,6 +5,8 @@ Source: https://data.sfgov.org/
 
 **Project Question:** Which SF neighborhoods appear to experience higher recent issue pressure based on public service requests and emergency incident activity?
 
+Disclaimer: `Polished with the help of ChatGPT`
+
 ---
 
 ## Table of Contents
